@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AI-Powered Network Intrusion Detection System API",
+    "version": "1.0.0",
+    "description": "Flask REST API for the KDD Cup 1999 five-class NIDS. Predictions are available only after a real-data training run. The service does not capture live packets; the demo endpoint is explicitly synthetic."
+  },
+  "servers": [{"url": "http://localhost:5000", "description": "Local development"}],
+  "tags": [
+    {"name": "system"}, {"name": "inference"}, {"name": "models"},
+    {"name": "history"}, {"name": "data"}, {"name": "demo"}
+  ],
+  "paths": {
+    "/api/health": {"get": {"tags": ["system"], "summary": "Health and model availability", "responses": {"200": {"description": "Service health; status is degraded when no model is loaded."}}}},
+    "/api/schema": {"get": {"tags": ["system"], "summary": "Canonical 41-feature and class schema", "responses": {"200": {"description": "Feature metadata and the five target classes."}}}},
+    "/api/predict": {"post": {"tags": ["inference"], "summary": "Classify one network record", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PredictRequest"}}}}, "responses": {"200": {"description": "Prediction, confidence, class probabilities, risk heuristic, and explanation."}, "400": {"description": "Schema or feature validation error."}, "503": {"description": "No production model is loaded."}}}},
+    "/api/predict-batch": {"post": {"tags": ["inference"], "summary": "Classify up to the configured JSON batch limit", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BatchPredictRequest"}}}}, "responses": {"200": {"description": "Predictions and output distribution."}, "400": {"description": "Invalid records."}, "413": {"description": "Configured row limit exceeded."}}}},
+    "/api/upload-csv": {"post": {"tags": ["inference"], "summary": "Validate a CSV and download prediction results", "requestBody": {"required": true, "content": {"multipart/form-data": {"schema": {"type": "object", "required": ["file"], "properties": {"file": {"type": "string", "format": "binary"}}}}}}, "responses": {"200": {"description": "CSV attachment with predictions, probabilities, risk, and global feature context."}, "400": {"description": "Invalid extension, columns, or values."}, "413": {"description": "Upload size or configured row limit exceeded."}}}},
+    "/api/model-info": {"get": {"tags": ["models"], "summary": "Active model and registry metadata", "responses": {"200": {"description": "Registry metadata or available=false when untrained."}}}},
+    "/api/metrics": {"get": {"tags": ["models"], "summary": "Measured validation/test metrics for every trained candidate", "responses": {"200": {"description": "Macro/weighted metrics, per-class recall/FPR, and confusion matrices from artifacts/metrics.json."}}}},
+    "/api/feature-importance": {"get": {"tags": ["models"], "summary": "Global model importance / SHAP summary", "parameters": [{"in": "query", "name": "limit", "schema": {"type": "integer", "minimum": 1, "maximum": 50}}], "responses": {"200": {"description": "Global feature summary, with method and interpretation caveat."}}}},
+    "/api/data-summary": {"get": {"tags": ["data"], "summary": "Explore the configured authentic KDD dataset", "responses": {"200": {"description": "Dimensions, class distribution, statistics, categories, and correlations; available=false if data is absent."}}}},
+    "/api/stats": {"get": {"tags": ["history"], "summary": "Prediction-history KPIs and distributions", "responses": {"200": {"description": "Counts computed from persisted inference events."}}}},
+    "/api/history": {"get": {"tags": ["history"], "summary": "Search and page prediction history", "parameters": [{"in":"query","name":"page","schema":{"type":"integer","default":1}},{"in":"query","name":"per_page","schema":{"type":"integer","default":25,"maximum":100}},{"in":"query","name":"attack_type","schema":{"type":"string","enum":["Normal","DoS","Probe","R2L","U2R"]}},{"in":"query","name":"severity","schema":{"type":"string","enum":["critical","high","medium","low"]}},{"in":"query","name":"min_confidence","schema":{"type":"number","minimum":0,"maximum":1}},{"in":"query","name":"max_confidence","schema":{"type":"number","minimum":0,"maximum":1}},{"in":"query","name":"since","schema":{"type":"string","format":"date-time"}},{"in":"query","name":"until","schema":{"type":"string","format":"date-time"}},{"in":"query","name":"search","schema":{"type":"string"}},{"in":"query","name":"sort_by","schema":{"type":"string","enum":["timestamp","confidence","prediction","risk_level"]}},{"in":"query","name":"sort_order","schema":{"type":"string","enum":["asc","desc"]}}], "responses":{"200":{"description":"Paginated persisted prediction records."}}}},
+    "/api/alerts": {"get": {"tags": ["history"], "summary": "Filtered non-Normal alert history", "responses": {"200": {"description": "Paginated alert records; accepts the same filter query parameters as /api/history."}}}},
+    "/api/history/export.csv": {"get": {"tags": ["history"], "summary": "Download prediction or alert history as CSV", "parameters": [{"in":"query","name":"alerts_only","schema":{"type":"boolean","default":false}}], "responses":{"200":{"description":"CSV attachment."}}}},
+    "/api/demo-record": {"get": {"tags": ["demo"], "summary": "Generate one synthetic unlabeled record for form walkthroughs", "responses": {"200": {"description": "Synthetic feature row; no ground-truth label is generated."}}}},
+    "/api/demo/predict": {"post": {"tags": ["demo"], "summary": "Classify synthetic UI/demo traffic with the loaded model", "responses": {"200": {"description": "Prediction from the actual loaded model, marked synthetic."}, "503": {"description": "No production model is loaded."}}}}
+  },
+  "components": {
+    "schemas": {
+      "PredictRequest": {
+        "type": "object", "required": ["record"], "additionalProperties": false,
+        "properties": {"record": {"type": "object", "description": "All 41 canonical KDD features, in any order. Numeric nulls/blanks may be imputed; categorical values are case-normalized.", "additionalProperties": {"oneOf": [{"type":"number"},{"type":"string"},{"type":"null"}]}}}
+      },
+      "BatchPredictRequest": {
+        "type": "object", "required": ["records"], "additionalProperties": false,
+        "properties": {"records": {"type":"array","minItems":1,"maxItems":500,"items":{"$ref":"#/components/schemas/PredictRequest/properties/record"}}, "include_local_explanations": {"type":"boolean","default":false}}
+      },
+      "Prediction": {
+        "type":"object", "properties": {
+          "id":{"type":"string","format":"uuid"}, "timestamp":{"type":"string","format":"date-time"},
+          "prediction":{"type":"string","enum":["Normal","DoS","Probe","R2L","U2R"]},
+          "confidence":{"type":"number","minimum":0,"maximum":1}, "probabilities":{"type":"object"},
+          "risk_level":{"type":"string","enum":["critical","high","medium","low"]},
+          "explanation":{"type":"object"}, "model_version":{"type":"string"}
+        }
+      }
+    }
+  }
+}

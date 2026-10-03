@@ -1,0 +1,54 @@
+services:
+  nids:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel-nids:1.0.0
+    container_name: sentinel-nids
+    restart: unless-stopped
+    user: "${NIDS_UID:-1000}:${NIDS_GID:-1000}"
+    environment:
+      PORT: 5000
+      NIDS_ENV: ${NIDS_ENV:-production}
+      NIDS_SECRET_KEY: ${NIDS_SECRET_KEY:-local-docker-change-this-secret}
+      NIDS_DATA_PATH: /app/data/raw/kddcup.data_10_percent.gz
+      NIDS_ARTIFACT_DIR: /app/artifacts
+      NIDS_HISTORY_DB: /app/data/nids_history.sqlite3
+      NIDS_MAX_UPLOAD_MB: ${NIDS_MAX_UPLOAD_MB:-10}
+      NIDS_MAX_BATCH_ROWS: ${NIDS_MAX_BATCH_ROWS:-5000}
+      NIDS_MAX_JSON_BATCH_ROWS: ${NIDS_MAX_JSON_BATCH_ROWS:-500}
+      NIDS_MAX_HISTORY_ROWS: ${NIDS_MAX_HISTORY_ROWS:-50000}
+      NIDS_CORS_ORIGINS: ${NIDS_CORS_ORIGINS:-http://localhost:5000,http://127.0.0.1:5000}
+      NIDS_RATE_LIMIT_STORAGE_URI: ${NIDS_RATE_LIMIT_STORAGE_URI:-memory://}
+      NIDS_RATE_LIMIT_DEFAULT: ${NIDS_RATE_LIMIT_DEFAULT:-300 per hour}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+    ports:
+      - "${HOST_PORT:-5000}:5000"
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  training:
+    image: sentinel-nids:1.0.0
+    profiles: ["training"]
+    user: "${NIDS_UID:-1000}:${NIDS_GID:-1000}"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NIDS_ENV: ${NIDS_ENV:-production}
+      NIDS_DATA_PATH: /app/data/raw/kddcup.data_10_percent.gz
+      NIDS_ARTIFACT_DIR: /app/artifacts
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+    command: ["python", "train.py", "--data", "/app/data/raw/kddcup.data_10_percent.gz", "--output", "/app/artifacts"]
