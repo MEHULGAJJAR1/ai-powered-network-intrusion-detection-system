@@ -259,9 +259,9 @@ KDD Cup 1999 is a historical benchmark with known age, repeated examples, and cl
 
 Future work: evaluate newer datasets (e.g. CIC-IDS or UNSW-NB15 under their terms), time-/host-based external validation, probability calibration, drift monitoring, authenticated RBAC, managed audit storage, analyst feedback, threshold calibration per environment, robust adversarial testing, streaming telemetry integration and a maintained packet/flow adapter.
 
-## GitHub publishing
+## GitHub
 
-To create the selected public repository `ai-powered-network-intrusion-detection-system` and push the source, follow [`PUSH_TO_GITHUB.md`](PUSH_TO_GITHUB.md). GitHub CLI/browser authentication is required; no token should be pasted into this project or chat.
+Published repository: [MEHULGAJJAR1/ai-powered-network-intrusion-detection-system](https://github.com/MEHULGAJJAR1/ai-powered-network-intrusion-detection-system). See [`PUSH_TO_GITHUB.md`](PUSH_TO_GITHUB.md) for clone and follow-up push instructions.
 
 ## Project structure
 
